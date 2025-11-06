@@ -1,0 +1,151 @@
+! main program
+program main
+  use eqdsk_reader
+  use field_cal
+  use interp
+  use deriv
+  implicit none
+  ! iteration 변수
+  integer :: steps = 2000   ! 총 iteration 수
+  real(8) :: dt = 0.01    ! 시간 간격
+  integer :: zip = 1       ! 출력 압축률
+  integer :: start_clock, end_clock, rate   !프로그램 실행 시간 측정용
+  real(8) :: elapsed_time
+  ! 아래는 전부 의존성 없이 초기위치 정의 및 iteration 실행에 필요한 부분임.
+  real(8), dimension(3) :: r    !r, z, phi 순
+  real(8) :: t, x01, y01, z01
+  integer :: istep, j, k, i
+  real(8), dimension(3) :: r_grid_value, z_grid_value
+  real(8), dimension(3) :: k1, k2, k3, k4, drdt, r_temp
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+  character(len=100) :: filename   !저장 dat 이름
+  type(eqdsk_data) :: eq    ! eqdsk_datkha 타입 선언
+  real(8), allocatable :: rgrid(:), zgrid(:)   !eqdsk의 그리드 값들
+  real(8), allocatable :: Br(:,:), Bz(:,:), Bphi(:,:)  ! 자기장 그리드
+  real(8) :: B_r, B_z, B_phi ! 점에서 자기장 성분
+
+    ! device 배열 할당
+  real(8), device, allocatable :: psi_d(:,:), rgrid_d(:), zgrid_d(:), fpol_d(:)
+  real(8), device, allocatable :: Br_d(:,:), Bz_d(:,:), Bphi_d(:,:)
+  type(dim3) :: block, grid
+  integer :: nw, nh
+  !!!!! 시간 기록용 변수
+  character(len=200) :: line
+  character(len=100) :: temp_filename
+  integer :: u1, u2, ios
+  !!!시간 기록용 변수
+  call system_clock(start_clock, rate)
+
+  r_grid_value=(/1.5d0, 1.7d0, 1.8d0/)   !초기위치 여러개 설정(격저점)
+  z_grid_value=(/-0.5d0, -0.0d0, 0.5d0/)
+  call read_eqdsk("g147131.02300_DIIID_KEFIT", eq)  !eqdsk 파일 읽기
+  nw=eq%nw
+  nh=eq%nh
+
+  block = dim3(16, 16, 1)  ! 블록 크기 설정
+  grid = dim3((nw+15)/16, (nh+15)/16, 1)
+
+  allocate(rgrid(eq%nw), zgrid(eq%nh))
+  allocate(psi_d(nw,nh), rgrid_d(nw), zgrid_d(nh), fpol_d(nw))
+  allocate(Br_d(nw,nh), Bz_d(nw,nh), Bphi_d(nw,nh))
+  ! R 격자 생성
+  do i = 1, eq%nw
+    rgrid(i) = eq%rleft + eq%rdim * (i - 1) / (eq%nw - 1)
+  end do
+  ! Z 격자 생성
+  do i = 1, eq%nh
+    zgrid(i) = eq%zmid-(eq%zdim/2) + eq%zdim * (i - 1) / (eq%nh - 1)
+  end do
+  print *, '변수들 확인', 'zmid=', eq%zmid, 'zdim=', eq%zdim, 'nh=', eq%nh, 'nw=', eq%nw, 'rleft=', eq%rleft, 'rdim=', eq%rdim
+  psi_d=eq%psi
+  rgrid_d=rgrid
+  zgrid_d=zgrid
+  fpol_d=eq%fpol
+  ! print *, 'eq_psi=', eq%psi(21,22)  ! 디버깅용 출력
+  ! print *, 'rgrid=', rgrid(21)  ! 디버깅용
+  ! print *, 'zgrid=', zgrid(22)  ! 디버깅용 출력
+  ! print *, 'fpol=', eq%fpol(21)  ! 디버깅
+  allocate(Br(eq%nw, eq%nh))
+  allocate(Bz(eq%nw, eq%nh))
+  allocate(Bphi(eq%nw, eq%nh))
+  ! 자기장 그리드 만들기(중요!)
+! <<<dimGrid, dimBlock>>> 구문으로 호출
+  print*, "디버그용:", eq%psi(3,3),eq%fpol(3)
+  call B_cal<<<grid, block>>>(psi_d, rgrid_d, zgrid_d, fpol_d, Br_d, Bz_d, Bphi_d, nw, nh)
+  filename = "test_trace.dat"
+
+  open(unit=10, file=filename, status='replace', action='write', form='formatted')
+  write(10, '(A,I10,A,1PE12.4,A,I10)') '# steps = ', steps, ', dt = ', dt, ', zip = ', zip
+
+  Br = Br_d
+  Bz = Bz_d
+  Bphi = Bphi_d
+  ! print *, 'Br=', Br(21,22)  ! 디버깅용 출력
+  ! print *, 'Bz', Bz(21,22)  ! 디버깅용 출력
+  ! print *, 'Bphi', Bphi(21,22)  ! 디버깅용 출력
+  do j=1,1
+  do k=1,1
+  x01=r_grid_value(j)   !r좌표
+  y01=z_grid_value(k)   !z자ㅗ표
+  z01=0.0d0           !theta 좌표
+  r = (/x01,y01,z01/)  ! 초기위치
+  print *, 'Initial position:', r(1), r(2), r(3)
+    do istep = 0, steps
+      t = istep * dt
+      if (mod(istep, zip) == 0) then
+        write(10,'(F12.6,3(1x,E16.8E3))') t, r(1), r(2), r(3)
+        
+      end if
+
+      !!!!!!!!!!!!!!!!!!!!! rk4 그냥 main에서 수동으로 실행
+      B_r=0
+      if (mod(r(3), 2.0d0 * acos(-1.0d0)) >= 0.0d0 .and. mod(r(3), 2.0d0 * acos(-1.0d0)) <= acos(-1.0d0)) then
+        B_z = 1.0d0
+      else
+        B_z = -1.0d0
+      end if
+      B_phi=1
+      ! 점에서 자기장 성분 계산
+      if (mod(istep, 10)==1) then
+        print *, 'B_r=', B_r, 'B_z=', B_z, 'B_phi=', B_phi
+       
+      end if
+      call compute_deriv(r, B_r, B_z, B_phi, k1)
+      
+
+      drdt = k1
+
+      r = r + dt * drdt
+      ! if (mod(istep, 77) == 0) then
+      !   print *, 'Step:', istep, 'Time:', t, 'Position:', r, 'drdt:', drdt
+      ! end if
+      !!!!!!!!!!!!!!!!!!!!!rk4 끝
+
+
+
+    end do
+  end do
+  end do
+  call system_clock(end_clock)
+  elapsed_time = real(end_clock - start_clock, kind=8) / real(rate, kind=8)
+  print *, "총 실행 시간 (초): ", elapsed_time
+  close(10)
+  
+  temp_filename = "Mag_trace_tmp.dat"
+
+  open(newunit=u1, file=temp_filename, status='replace', action='write')
+  write(u1, '(A,I0,A,ES12.5,A,I0)') 'Euler Method. # steps = ', steps, ', dt = ', dt, ', zip = ', zip
+  write(u1, '(A,F10.3,A)') '# total execution time = ', elapsed_time, ' sec'
+
+  open(newunit=u2, file=filename, status='old', action='read')
+  do
+    read(u2, '(A)', iostat=ios) line
+    if (ios /= 0) exit
+    write(u1, '(A)') trim(line)
+  end do
+  close(u2)
+  close(u1)
+  call execute_command_line('mv ' // trim(temp_filename) // ' ' // trim(filename))
+
+
+end program main

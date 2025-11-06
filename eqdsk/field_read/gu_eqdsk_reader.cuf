@@ -1,0 +1,113 @@
+module eqdsk_reader
+  implicit none
+  private
+  public :: read_eqdsk, eqdsk_data
+
+  type :: eqdsk_data
+    integer :: nw, nh
+    real(8) :: rdim, zdim, rleft, zmid
+    real(8) :: rmaxis, zmaxis, psiaxis, psibdry
+    real(8) :: bcentr, current, simag, sibry, rgrid1, zgrid1
+    real(8), allocatable :: psi(:,:), fpol(:), ffprime(:), pprime(:), qpsi(:)
+  end type eqdsk_data
+
+contains
+
+  subroutine read_eqdsk(filename, eq)
+    character(len=*), intent(in) :: filename
+    type(eqdsk_data), intent(out) :: eq
+
+    character(len=256) :: line
+    character(len=16) :: field
+    character(len=256) :: last_words(20)
+    integer :: nw_read, nh_read
+    real(8), allocatable :: buffer(:)
+    integer :: i, j, k, ios, unit, nvals, nwords
+
+    ! 파일 열기
+    open(newunit=unit, file=filename, status='old', iostat=ios)
+    if (ios /= 0) stop 'Failed to open GEQDSK file.'
+
+    ! 첫 줄: nw, nh 추출
+    read(unit,'(A)', iostat=ios) line
+    if (ios /= 0) stop 'Failed to read header.'
+
+    nwords = 0
+    do i = len_trim(line), 1, -1
+      if (line(i:i) == ' ') then
+        if (i < len_trim(line)) then
+          nwords = nwords + 1
+          read(line(i+1:len_trim(line)), *, iostat=ios) last_words(nwords)
+          if (nwords == 2) exit
+        end if
+        line = line(:i-1)
+      end if
+    end do
+
+    read(last_words(2), *, iostat=ios) eq%nh
+    if (ios /= 0) stop 'Failed to parse nh'
+    read(last_words(1), *, iostat=ios) eq%nw
+    if (ios /= 0) stop 'Failed to parse nw'
+
+    ! 전체 읽을 실수의 수 계산
+    nvals = 15 + eq%nw * eq%nh + 5 * eq%nw
+    allocate(buffer(nvals))
+
+    ! 값들 읽기
+    k = 1
+    do
+      read(unit, '(A)', iostat=ios) line
+      if (ios /= 0) exit
+      do i = 1, len_trim(line)/16
+        field = line((i-1)*16+1:i*16)
+        read(field,*, iostat=ios) buffer(k)
+        if (ios == 0) then
+          k = k + 1
+          if (k > nvals) exit
+        end if
+      end do
+      if (k > nvals) exit
+    end do
+    close(unit)
+
+    if (k <= nvals) then
+      print *, 'ERROR: Only read', k-1, 'of', nvals, 'values'
+      stop 'File is incomplete'
+    end if
+
+    ! === 헤더 파싱 (EFIT 표준) ===
+    eq%rdim    = buffer(1)
+    eq%zdim    = buffer(2)
+    ! buffer(3) : rcentr (필요 시 추가)
+    eq%rleft   = buffer(4)
+    eq%zmid    = buffer(5)
+    eq%rmaxis  = buffer(6)
+    eq%zmaxis  = buffer(7)
+    eq%psiaxis = buffer(8)
+    eq%psibdry = buffer(9)
+    eq%bcentr  = buffer(10)
+    eq%current = buffer(11)
+    eq%simag   = buffer(12)
+    eq%sibry   = buffer(13)
+    eq%rgrid1  = buffer(14)
+    eq%zgrid1  = buffer(15)
+
+    ! psi(R,Z)
+    allocate(eq%psi(eq%nw, eq%nh))
+    k = 16
+    do j = 1, eq%nh
+      do i = 1, eq%nw
+        eq%psi(i,j) = buffer(k)
+        k = k + 1
+      end do
+    end do
+
+    ! 1D profiles
+    allocate(eq%fpol(eq%nw), eq%ffprime(eq%nw), eq%pprime(eq%nw), eq%qpsi(eq%nw))
+    eq%fpol    = buffer(k:k+eq%nw-1); k = k + eq%nw
+    eq%ffprime = buffer(k:k+eq%nw-1); k = k + eq%nw
+    eq%pprime  = buffer(k:k+eq%nw-1); k = k + eq%nw
+    eq%qpsi    = buffer(k:k+eq%nw-1)
+  end subroutine read_eqdsk
+
+end module eqdsk_reader
