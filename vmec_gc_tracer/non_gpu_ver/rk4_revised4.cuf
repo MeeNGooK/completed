@@ -24,7 +24,7 @@ program main
     real(8) :: x_1(3), x_2(3), x_3(3), x_4(3),  u_1, u_2, u_3, u_4
     real(8) :: x_temp(3), u_temp
     real(8) :: bxgb(3)
-
+    real(8) :: t
     real(8) :: r, z, zeta, dx, dx2, dx3
 
     integer :: sindex  ! zipper for writing(1 write for every 'zipper' steps)
@@ -99,11 +99,11 @@ program main
     write(unit_out,*) "u=", u
     write(unit_out,*) "v_perp=", v_perp
     write(unit_out,*)
-    write(unit_out,'(A)') "istep         r       z        zeta"
+    write(unit_out,'(A)') "time(s)         r       z        zeta      s"
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-    call read_nc("wout_iota0_42.nc", nc)
+    call read_nc(infilename, nc)
     deltax=nc%phi(2)-nc%phi(1)
     v=sqrt(u**2+v_perp**2)
     n_nyq = nc%mnmax_nyq
@@ -198,7 +198,7 @@ program main
 
 
 ! Numerical integration using rk4 method
-
+    t=0.0e0
     do istep=1,steps
         
 
@@ -241,7 +241,7 @@ program main
         z=comps_arg(x0(2), x0(3), nc%xm, nc%xn, zmns_arr, sinvals)
 
         if (mod(istep,zipper)==0) then
-            write(unit_out,'(I8,3ES20.10)') istep,r,z,x0(3)
+            write(unit_out,'(5ES20.10)') t, r, z, x0(3), x0(1)
         end if
 
 
@@ -454,7 +454,7 @@ program main
         x0=x_temp+dt*(x_1+2*x_2+2*x_3+x_4)/6.0d0
         u=u_temp+dt*(u_1+2*u_2+2*u_3+u_4)/6.0d0
         v_perp_2=v**2-u**2
-
+        t=t+dt
         if (mod(istep,100000)==0) then
             print*, "istep=",  istep
             print*, "grad_b=", grad_b

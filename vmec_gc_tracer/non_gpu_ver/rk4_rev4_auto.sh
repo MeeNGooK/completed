@@ -29,20 +29,21 @@ nvfortran \
 compile_status=$?
 
 if [ $compile_status -eq 0 ]; then
-  echo ">>> Compilation successful. Running $OUTFILE..."
+  echo ">>> Compilation successful. Running $OUTFILE..."   # OUTFILE : Executable file name
   export LD_LIBRARY_PATH=/home/rjrj524/modules/lib:$LD_LIBRARY_PATH
   # base / step(interval)
-  base=20000
-  step=2000
+  base=100000
+  step=20000
 
-  for i in {1..10}; do
+  for i in {11..15}; do
     arg2=$(echo "$base + ($i - 1) * $step" | bc -l)
     outfile="dat${i}.dat"
   # u, v_perp, outfilename, timestep, iteration, verbose, m/m_e
-    echo ">>> Running with arguments: 5.0e5 $arg2 '$outfile' 1.0e-9 1000000 100 1"
-    ./"$OUTFILE" $arg2 5.0e5 "$outfile" 1.0e-8 1000000 1 1836
+    echo ">>> Running with arguments: $arg2 2.0e5 '$outfile' 2.0e-9 5000000 50 1836"
+    ./"$OUTFILE" $arg2 4.0e5 "$outfile" 2.0e-9 5000000 50 1836
   done
 
 else
   echo ">>> Compilation failed. $OUTFILE will not run."
+
 fi
