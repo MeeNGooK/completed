@@ -14,7 +14,7 @@ SRC=(
   modules/spline.cuf
   modules/fourier1.cuf
   reader/nc_reader.cuf
-  rk4_init_boun.cuf
+  rk4_revised4.cuf
 )
 
 echo ">>> Compiling with NVFORTRAN..."
@@ -42,7 +42,7 @@ if [ $compile_status -eq 0 ]; then
   # u, v_perp, outfilename, timestep, iteration, verbose, m/m_e, inputname
     echo ">>> Running with arguments: $arg2 $arg1 '$outfile' 2.0e-9 5000000 50 1836"
     
-    ./"$OUTFILE" $arg2 2.0e4 "$outfile" 2.0e-9 200000 50 1836 '/home/rjrj524/project3/20251121_pwo/nc/wout_QA_nfp2_A6.nc' "0.07477, 3.0775, 6.4114"
+    ./"$OUTFILE" $arg2 2.0e4 "$outfile" 1.0e-9 5000000 500 1836 '/home/rjrj524/project3/20251121_pwo/nc/wout_QA_nfp2_A6.nc' "0.07477, 3.0775, 6.4114"
 
   done
 

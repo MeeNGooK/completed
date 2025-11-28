@@ -1,0 +1,3 @@
+﻿v_perp,v_para,output,dt,steps,compress,mass,nc,x1,x2,x3
+2.00E+05,2.00E+04,dat1.dat,1.00E-09,5.00E+05,5.00E+02,1.84E+03,/home/rjrj524/project3/20251121_pwo/nc/wout_QA_nfp2_A6.nc,7.48E-02,3.08E+00,6.41E+00
+2.00E+05,2.00E+04,dat2.dat,1.00E-09,5.00E+05,5.00E+02,1.84E+03,/home/rjrj524/project3/20251121_pwo/nc/wout_QA_nfp2_A6.nc,7.48E-02,3.08E+00,6.41E+00

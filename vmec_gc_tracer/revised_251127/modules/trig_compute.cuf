@@ -1,0 +1,149 @@
+module trig_compute
+    implicit none
+
+    
+    integer :: m_max_glob = 0, n_max_glob = 0
+    logical :: trig_init = .false.  ! if trig already initialized
+
+    real(8), allocatable :: s_theta(:), c_theta(:)
+    real(8), allocatable :: s_phi(:),  c_phi(:)
+
+contains
+
+
+
+    ! get maximum |m|,|n| from xm/xn/xm_nyq/xn_nyq
+    subroutine trig_prepare(xm1, xn1, xm2, xn2)
+        implicit none
+        integer, intent(in) :: xm1(:), xn1(:)
+        integer, intent(in) :: xm2(:), xn2(:)
+        integer :: m1, m2, n1, n2
+        integer :: new_m_max, new_n_max
+
+        ! Calculate maximum |m| and |n| (considering both sets)
+        m1 = maxval(abs(xm1))
+        m2 = maxval(abs(xm2))
+        n1 = maxval(abs(xn1))
+        n2 = maxval(abs(xn2))
+
+        new_m_max = max(m1, m2)
+        new_n_max = max(n1, n2)
+
+        
+        if (trig_init) then
+            if (new_m_max <= m_max_glob .and. new_n_max <= n_max_glob) return
+            ! size optimize
+            deallocate(s_theta, c_theta, s_phi, c_phi)
+        end if
+
+        m_max_glob = new_m_max
+        n_max_glob = new_n_max
+
+        allocate(s_theta(0:m_max_glob), c_theta(0:m_max_glob))
+        allocate(s_phi(0:n_max_glob),   c_phi(0:n_max_glob))
+
+        trig_init = .true.
+    end subroutine trig_prepare
+
+    ! recursive build of sin, cos
+
+    subroutine trig_build(theta, zeta)
+        implicit none
+        real(8), intent(in) :: theta, zeta
+
+        real(8) :: stheta, ctheta, sphi, cphi
+        real(8) :: sp, cp
+        integer :: k
+
+        if (.not. trig_init) then
+            print *, "Error in trig_build: trig_prepare has not been called."
+            stop
+        end if
+
+        stheta = sin(theta)
+        ctheta = cos(theta)
+        sphi   = sin(0.5d0*zeta)
+        cphi   = cos(0.5d0*zeta)
+
+        ! k * θ
+        s_theta(0) = 0.0d0
+        c_theta(0) = 1.0d0
+        do k = 1, m_max_glob
+            sp = s_theta(k-1)
+            cp = c_theta(k-1)
+            s_theta(k) = sp*ctheta + cp*stheta
+            c_theta(k) = cp*ctheta - sp*stheta
+        end do
+
+        ! k * φ
+        s_phi(0) = 0.0d0
+        c_phi(0) = 1.0d0
+        do k = 1, n_max_glob
+            sp = s_phi(k-1)
+            cp = c_phi(k-1)
+            s_phi(k) = sp*cphi + cp*sphi
+            c_phi(k) = cp*cphi - sp*sphi
+        end do
+    end subroutine trig_build
+
+    ! Calculate sin(mtheta-nphi) and cos(mtheta - nphi) for modes
+    subroutine trig_apply(xm, xn, sinvals, cosvals)
+        implicit none
+        integer, intent(in)  :: xm(:), xn(:)
+        real(8), intent(out) :: sinvals(:), cosvals(:)
+
+        integer :: nmode
+        integer :: i, m, n, am, an
+        real(8) :: sm, cm, sn, cn
+
+        if (.not. trig_init) then
+            print *, "Error in trig_apply: trig_prepare has not been called."
+            stop
+        end if
+
+        nmode = size(xm)
+        if (size(xn) /= nmode) then
+            print *, "Error in trig_apply: size(xm) /= size(xn)"
+            stop
+        end if
+        if (size(sinvals) /= nmode .or. size(cosvals) /= nmode) then
+            print *, "Error in trig_apply: output array size mismatch"
+            stop
+        end if
+
+
+        do i = 1, nmode
+            m  = xm(i)
+            n  = xn(i)
+            am = abs(m)
+            an = abs(n)
+
+            sm = s_theta(am)
+            cm = c_theta(am)
+            if (m < 0) sm = -sm
+
+            sn = s_phi(an)
+            cn = c_phi(an)
+            if (n < 0) sn = -sn
+
+            sinvals(i) = sm*cn - cm*sn
+            cosvals(i) = cm*cn + sm*sn
+        end do
+    end subroutine trig_apply
+
+    ! onestop function ABOVE ALL
+    subroutine recur_trig(theta, zeta, xm, xn, sinvals, cosvals)
+        implicit none
+        real(8), intent(in)  :: theta, zeta
+        integer, intent(in)  :: xm(:), xn(:)
+        real(8), intent(out) :: sinvals(:), cosvals(:)
+
+        if (.not. trig_init) then
+            call trig_prepare(xm, xn, xm, xn)
+        end if
+
+        call trig_build(theta, zeta)
+        call trig_apply(xm, xn, sinvals, cosvals)
+    end subroutine recur_trig
+
+end module trig_compute

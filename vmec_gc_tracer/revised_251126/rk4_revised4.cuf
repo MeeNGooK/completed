@@ -99,8 +99,8 @@ program main
     write(unit_out,*) "u=", u
     write(unit_out,*) "v_perp=", v_perp
     write(unit_out,*)
-    write(unit_out,'(A)') "time(s)         r       z        zeta      s"
-
+    ! write(unit_out,'(A)') "time(s)         r       z        zeta      s"
+    write(unit_out,'(A)') "time(s)         x0(1)       x0(2)        x0(3)      r"
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
     call read_nc(infilename, nc)
@@ -248,7 +248,8 @@ program main
         z=comps_arg(n_mn, zmns_arr, sinvals)
 
         if (mod(istep,zipper)==0) then
-            write(unit_out,'(5ES20.10)') t, r, z, x0(3), x0(1)
+            ! write(unit_out,'(5ES20.10)') t, r, z, x0(3), x0(1)
+            write(unit_out,'(5ES20.10)') t, x0(1),x0(2),x0(3),r
         end if
 
         if (r < 0.0d0) then
@@ -292,7 +293,23 @@ program main
         u_1=dudt
         x0=x_temp+0.5d0*x_1*dt
         u=u_temp+0.5d0*u_1*dt
+        if (mod(istep,100000)==1) then
+            print*, "rk1"
+            print*, "istep=",  istep
+            print*, "grad_b=", grad_b
+            print*, "bsub=", bsub
+            print*, "bsup=", bsup
+            print*, "b_abs=", b_abs
+            print*, "g=", g
+            print*, "j=", j
+            print*, "v_perp_2=", v_perp_2 
+            print*, "b_n=", b_n
+            print*, "b_para_n=", b_para_n
 
+            print*, "dxdt=", dxdt
+            print*, "dudt=", dudt
+            print*, "---------------------"
+        end if
         !!!!!!!! RK4 2nd
         call trig_build(x0(2), x0(3))
         
@@ -346,12 +363,28 @@ program main
         b_para_n=b_abs+eps*u*(mu0*DOT_PRODUCT(j,bsub)/(b_abs**2))   ! row 2
         dudt=-(v_perp_2/(2.0d0*b_abs))*DOT_PRODUCT(grad_b,bsup)/b_para_n  ! row 3
         dxdt=(b_abs/b_para_n)*((u*b_n/b_abs)+(m*v_perp_2/(2*q*(b_abs**3)))*bxgb)
-        
+
         x_2=dxdt
         u_2=dudt
         x0=x_temp+0.5d0*x_2*dt
         u=u_temp+0.5d0*u_2*dt
+        if (mod(istep,100000)==1) then
+            print*, "rk2"
+            print*, "istep=",  istep
+            print*, "grad_b=", grad_b
+            print*, "bsub=", bsub
+            print*, "bsup=", bsup
+            print*, "b_abs=", b_abs
+            print*, "g=", g
+            print*, "j=", j
+            print*, "v_perp_2=", v_perp_2 
+            print*, "b_n=", b_n
+            print*, "b_para_n=", b_para_n
 
+            print*, "dxdt=", dxdt
+            print*, "dudt=", dudt
+            print*, "---------------------"
+        end if
         !!!!!!!!!!! rk4 3rd
         call trig_build(x0(2), x0(3))
 
@@ -405,7 +438,23 @@ program main
         b_para_n=b_abs+eps*u*(mu0*DOT_PRODUCT(j,bsub)/(b_abs**2))   ! row 2
         dudt=-(v_perp_2/(2.0d0*b_abs))*DOT_PRODUCT(grad_b,bsup)/b_para_n  ! row 3
         dxdt=(b_abs/b_para_n)*((u*b_n/b_abs)+(m*v_perp_2/(2*q*(b_abs**3)))*bxgb)
-        
+        if (mod(istep,100000)==1) then
+            print*, "rk3"
+            print*, "istep=",  istep
+            print*, "grad_b=", grad_b
+            print*, "bsub=", bsub
+            print*, "bsup=", bsup
+            print*, "b_abs=", b_abs
+            print*, "g=", g
+            print*, "j=", j
+            print*, "v_perp_2=", v_perp_2 
+            print*, "b_n=", b_n
+            print*, "b_para_n=", b_para_n
+
+            print*, "dxdt=", dxdt
+            print*, "dudt=", dudt
+            print*, "---------------------"
+        end if
         x_3=dxdt
         u_3=dudt
         x0=x_temp+x_3*dt
@@ -473,7 +522,8 @@ program main
         u=u_temp+dt*(u_1+2*u_2+2*u_3+u_4)/6.0d0
         v_perp_2=v**2-u**2
         t=t+dt
-        if (mod(istep,100000)==0) then
+        if (mod(istep,100000)==1) then
+            print*, "rk4"
             print*, "istep=",  istep
             print*, "grad_b=", grad_b
             print*, "bsub=", bsub

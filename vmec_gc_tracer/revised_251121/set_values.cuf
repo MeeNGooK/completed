@@ -20,11 +20,14 @@ contains
     subroutine init_val()
         implicit none
         character(len=200) :: arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8
+        character(len=200) :: arg9, arg10, arg11
+        real(8) :: t1, t2, t3
+        integer :: ios
 
-        ! 초기 좌표
-        x0 = (/0.08d0, 3.077479d0, 0.256457d0/)
+        ! 기본값: 초기 좌표
+        x0 = (/0.0746d0, 4.71d0, -2.157d0/)
 
-        ! 커맨드라인 인자 읽기
+        ! 커맨드라인 인자 읽기 (기존 1..8)
         call get_command_argument(1, arg1)  ! u
         call get_command_argument(2, arg2)  ! v_perp
         call get_command_argument(3, arg3)  ! filename
@@ -33,17 +36,24 @@ contains
         call get_command_argument(6, arg6)  ! zipper
         call get_command_argument(7, arg7)  ! m
         call get_command_argument(8, arg8)  ! input filename(netcdf)
-        
+
+        ! 추가: x0를 위한 인자 (9,10,11)
+        call get_command_argument(9, arg9)  ! optional: "x y z" 또는 첫번째 컴포넌트
+        call get_command_argument(10, arg10) ! optional: 두번째 컴포넌트 (if not provided in arg9)
+        call get_command_argument(11, arg11) ! optional: 세번째 컴포넌트
+
         ! u 설정
         if (len_trim(arg1) > 0) then
-            read(arg1, *) u
+            read(arg1, *, iostat=ios) u
+            if (ios /= 0) u = 1.0d6
         else
             u = 1.0d6
         end if
 
         ! v_perp 설정
         if (len_trim(arg2) > 0) then
-            read(arg2, *) v_perp
+            read(arg2, *, iostat=ios) v_perp
+            if (ios /= 0) v_perp = 4.3d6
         else
             v_perp = 4.3d6
         end if
@@ -57,28 +67,32 @@ contains
 
         ! dt 설정
         if (len_trim(arg4) > 0) then
-            read(arg4, *) dt
+            read(arg4, *, iostat=ios) dt
+            if (ios /= 0) dt = 1.0d-9
         else
             dt = 1.0d-9
         end if
 
         ! steps 설정
         if (len_trim(arg5) > 0) then
-            read(arg5, *) steps
+            read(arg5, *, iostat=ios) steps
+            if (ios /= 0) steps = 2000000
         else
             steps = 2000000
         end if
 
         ! zipper 설정
         if (len_trim(arg6) > 0) then
-            read(arg6, *) zipper
+            read(arg6, *, iostat=ios) zipper
+            if (ios /= 0) zipper = 50
         else
             zipper = 50
         end if
 
         ! m 설정
         if (len_trim(arg7) > 0) then
-            read(arg7, *) m_ratio
+            read(arg7, *, iostat=ios) m_ratio
+            if (ios /= 0) m_ratio = 1.0d0
         else
             m_ratio = 1.0d0  ! 기본값: m/m_e = 1
         end if
@@ -89,6 +103,33 @@ contains
         else
             infilename = '/home/rjrj524/project3/20251121_pwo/nc/wout_pwO_nfp2_A6.nc'
         end if
+
+        ! === x0 설정 로직 ===
+        ! 우선 arg9 하나에 "a b c" 형태로 들어왔는지 시도해보고, 실패하면 arg9,arg10,arg11 각각을 읽음.
+        if (len_trim(arg9) > 0) then
+            ! 시도: arg9에 세 개 숫자가 같이 들어오는 경우 (예: "0.0746 4.71 -2.157")
+            read(arg9, *, iostat=ios) t1, t2, t3
+            if (ios == 0) then
+                x0(1) = t1
+                x0(2) = t2
+                x0(3) = t3
+            else
+                ! 아니라면 arg9,arg10,arg11 각각에 값이 들어있는지 확인
+                if (len_trim(arg9) > 0) then
+                    read(arg9, *, iostat=ios) t1
+                    if (ios == 0) x0(1) = t1
+                end if
+                if (len_trim(arg10) > 0) then
+                    read(arg10, *, iostat=ios) t2
+                    if (ios == 0) x0(2) = t2
+                end if
+                if (len_trim(arg11) > 0) then
+                    read(arg11, *, iostat=ios) t3
+                    if (ios == 0) x0(3) = t3
+                end if
+            end if
+        end if
+        ! === end x0 설정 ===
 
         ! eps 계산 (m/q)
         m = m_e * m_ratio
